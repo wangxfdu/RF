@@ -12,21 +12,64 @@ import datetime
 
 
 class Fund():
-    def __init__(self, name = "NA", share = 0, valueOrig = 1, buyInDate = 0, expireDate = 0, customerInterest = 0, feeRate = 0, fundInterest = 0):
+    def __init__(self, name = "NA", share = 0, valueOrig = 1, buyInDate = 0, expireDate = 0, customerInterest = 0, feeRate = 0):
         self.name = name
         self.share = share
         self.valueOrig = valueOrig
         self.buyInDate = buyInDate
         self.expireDate = expireDate
         self.customerInterest = customerInterest
-        self.fundInterest = fundInterest
-        self.feeRate = feeRate
+        self.feeRate = feeRate #not used now
         self.relativeDays = 0 # days of expireDate - referenceDate
         pass
     
+    def dump(self, level = 'v'):
+        logPrint(u"[产品] {}: 份额 {}, 初始净值 {}, 交易日 {}, 到期日 {}, 业绩比较基准 {}, 费率 {}".format(
+                 self.name,
+                 self.share,
+                 self.valueOrig,
+                 self.buyInDate,
+                 self.expireDate,
+                 self.customerInterest,
+                 self.feeRate), level)
+    
+    def isValid(self):
+        if self.share == None or self.valueOrig == None or self.buyInDate == None or self.expireDate == None \
+                or self.customerInterest == None or self.feeRate == None :
+            return False
+        return True
+    
 class Capital():
-    def __ini__(self):
-        pass
+    def __init__(self, name = u"底层资产", money = 0, buyInDate = 0, valueDate = None, \
+                 expireDate = 0, feeRate = 0, fundInterest = 0):
+        self.name = name
+        self.money = money
+        self.buyInDate = buyInDate
+        #起息日
+        self.valueDate = valueDate
+        self.expireDate = expireDate
+        self.feeRate = feeRate
+        self.fundInterest = fundInterest
+        if valueDate == None:
+            valueDate = buyInDate + datetime.timedelta(days = 0)
+        self.relativeDays = 0 # days of expireDate - referenceDate
+
+    def isValid(self):
+        if self.money == None or self.buyInDate == None or self.valueDate == None \
+                or self.expireDate == None or self.feeRate == None or self.fundInterest == None :
+            return False
+        return True
+            
+    def dump(self, level = 'v'):
+        logPrint(u"[底层资产] {}: 金额 {}, 交易日 {}, 起息日 {}, 到期日 {}, 收益率 {}, 费率 {}".format(
+                 self.name,
+                 self.money,
+                 self.buyInDate,
+                 self.valueDate,
+                 self.expireDate,
+                 self.fundInterest,
+                 self.feeRate), level)
+
 
 class FundOfFund():
     def __init__(self, netValue = 1, refDate = 0, cash = 0, share = 0):
@@ -35,10 +78,12 @@ class FundOfFund():
         self.cash = cash
         self.share = share
         self.pendingAsset = 0
+        self.pendingShareDraw = 0
 
     def clone(self):
         copy = FundOfFund(netValue = self.netValue, refDate = self.refDate, cash = self.cash, share = self.share)
         copy.pendingAsset = 0
+        self.pendingShareDraw = 0
         return copy
 
 class FileLoader():
@@ -178,19 +223,41 @@ Author: Xiang Wang (wangxfdu@163.com)
     dlg.ShowModal()
     dlg.Destroy()
 
-def logPrint(log, level = 's'):
+def logPrint(log, level = 'i'):
     '''
-    s: standard outoupt
+    e: error
+    w: warning
+    i: info
     v: verbose output
     '''
-    doPrint = False
-    if (level == 'v' and verboseChk.IsChecked()) or level == 's' :
-        doPrint = True
+
+    if level == 'v' and not verboseChk.IsChecked():
+        return
+
+    if level == 'e' :
+        logText.SetDefaultStyle(wx.TextAttr(wx.RED))
+    elif level == "w":
+        logText.SetDefaultStyle(wx.TextAttr(wx.RED))
+    elif level == "v":
+        logText.SetDefaultStyle(wx.TextAttr(wx.BLUE))
     else:
-        doPrint = False
-    if doPrint:
-        logText.AppendText(log + "\n")
+        logText.SetDefaultStyle(wx.TextAttr(wx.BLACK))
+
+    logText.AppendText(log + "\n")
+
+def cellGetDate(cell, datemode):
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        return xlrd.xldate_as_datetime(cell.value, datemode).date()
+    else:
+        return None
     
+def cellGetNumber(cell):
+    if cell.ctype == xlrd.XL_CELL_NUMBER:
+        return cell.value
+    elif cell.ctype == xlrd.XL_CELL_TEXT:
+        return float(cell.value.replace(',',''))
+    else:
+        return None
 
 def cashFormat(num):
     return format(num, ',f')
@@ -206,26 +273,33 @@ def wxdate2pydate(date):
     
 def doCalculate(evt):
     global fundList, FOF
-    netValueCalculate(FOF = FOF.clone(), fundList = fundList, refDate = datetime.date(2017, 10, 12),
-                      refNetValue = 1, targetDate = wxdate2pydate(dpc.GetValue()))
+    netValueCalculate(FOF = FOF.clone(), fundList = fundList, refDate = FOF.refDate,
+                      targetDate = wxdate2pydate(dpc.GetValue()))
 
 def doClear(evt):
     logText.Clear()
     
-def netValueCalculate(FOF, fundList, refDate, refNetValue, targetDate):
+def netValueCalculate(FOF, fundList, refDate, targetDate):
     for i in range(len(fundList)):
         fundList[i].relativeDays = (fundList[i].expireDate - refDate).days
-        logPrint("%d" % fundList[i].relativeDays)
+        logPrint(u'{} 剩余天数 {}'.format(fundList[i].name, fundList[i].relativeDays), 'v')
+        if (fundList[i].buyInDate - refDate).days > 0:
+            logPrint(u'{} 买入日期晚于估值表日期'.format(fundList[i].name), 'w')
 
     fundList.sort(key = lambda d: d.relativeDays)
-    logPrint("After sort")
+    logPrint(u"基金按到期日期排序", 'v')
     for i in range(len(fundList)):
-        logPrint("%d" % fundList[i].relativeDays)
+        logPrint(u'{} 剩余天数 {}'.format(fundList[i].name, fundList[i].relativeDays), 'v')
 
+    for i in range(len(capitalList)):
+        capitalList[i].relativeDays = (capitalList[i].expireDate - refDate).days
+        logPrint(u'{} 剩余天数 {}'.format(capitalList[i].name, capitalList[i].relativeDays), 'v')
+        if (capitalList[i].buyInDate - refDate).days > 0:
+            logPrint(u"{} 买入日期晚于估值表日期".format(capitalList[i].name), 'w')
 
     targetRelDays = (targetDate - refDate).days
     if targetRelDays <= 0 :
-        logPrint(u"错误: 日期选择不在有效范围内!")
+        logPrint(u"错误: 日期选择不在有效范围内!", 'w')
         return
     tmpDate = refDate
 
@@ -245,40 +319,77 @@ def netValueCalculate(FOF, fundList, refDate, refNetValue, targetDate):
                 break
         tmpDate = tmpDate + datetime.timedelta(days = tmpDays)
         logPrint(u"----- 计算点: 日期 %s -----" % tmpDate.strftime("%Y-%m-%d"))
+
+        for i in range(len(capitalList)):
+            HandleCapital(FOF, capital = capitalList[i], days = tmpDays)  
+
         for i in range(len(fundList)):
-            FOFValueCalculate(FOF, childFund = fundList[i], days = tmpDays)
-        FOF.netValue = (FOF.netValue * FOF.share + FOF.pendingAsset)/FOF.share
+            HandleChildFund(FOF, childFund = fundList[i], days = tmpDays)
+
+        print "pending  {} ".format(FOF.pendingAsset)
+        FOF.netValue = (FOF.netValue * FOF.share + FOF.pendingAsset)/ (FOF.share - FOF.pendingShareDraw)
         FOF.pendingAsset = 0
+        FOF.pendingShareDraw = 0
         logPrint(u"母基金净值:%s 现金 %s" % (cashFormat(FOF.netValue), cashFormat(FOF.cash) ))
 
         targetRelDays = targetRelDays - tmpDays
         pass
 
-def FOFValueCalculate(FOF, childFund, days):
+def HandleCapital(FOF, capital, days):
+    # we can only update the copy of original FOF
+    if capital.relativeDays <= 0 :
+        return
+    else:
+        logPrint(u'{} 净值增量计算，天数 {}'.format(capital.name, days), 'v')
+        if days > capital.relativeDays :
+            validDays = capital.relativeDays
+        else :
+            validDays = days
+        valueInc = capital.money * (capital.fundInterest - capital.feeRate)/100 * validDays /365
+        FOF.pendingAsset = FOF.pendingAsset + valueInc
+        capital.relativeDays = capital.relativeDays - days
+        print valueInc
+        if capital.relativeDays <= 0:
+            #资产到期，变现后增加现金资产
+            period = (capital.expireDate - capital.buyInDate).days
+            cashInc = capital.money + \
+                capital.money * (capital.fundInterest - capital.feeRate)/100 * period / 365
+            FOF.cash = FOF.cash + cashInc
+            logPrint(u'产品 {} 到期，现金资产增加 {:,f}，当前总现金资产 {:,f}'.format(
+                     capital.name,
+                     cashInc,
+                     FOF.cash
+                     ))
+
+def HandleChildFund(FOF, childFund, days):
     # we can only update the copy of original FOF
     if childFund.relativeDays <= 0 :
         return
     elif childFund.relativeDays == 1:
         assert days == 1
-        logPrint(u"提取 " + childFund.name)
+        cashDesc = childFund.share * FOF.netValue
+        logPrint(u"提取 {}, 金额 {:,f}".format(childFund.name, cashDesc))
+        '''
         period = (childFund.expireDate - childFund.buyInDate).days
         cashInc = childFund.share * FOF.netValue - \
             childFund.share * childFund.valueOrig * childFund.customerInterest /100 * period / 365
-        FOF.pendingAsset = FOF.pendingAsset + cashInc
-        FOF.cash = FOF.cash + cashInc
-        logPrint(u"%s 赎回，天数 %d，增加现金 %s 至母基金" % (childFund.name, period, cashFormat(cashInc)))
+        FOF.pendingAsset = FOF.pendingAsset cashDesc
+        '''
+        FOF.cash = FOF.cash - cashDesc
+        FOF.share = FOF.share - childFund.share
+        #logPrint(u"%s 赎回，天数 %d，增加现金 %s 至母基金" % (childFund.name, period, cashFormat(cashInc)))
         childFund.relativeDays = 0
     else:
-        logPrint(u"净值计算 " + childFund.name)
-        assetInc = childFund.share * childFund.valueOrig * (childFund.fundInterest - childFund.feeRate)/100 * days /365
-        FOF.pendingAsset = FOF.pendingAsset + assetInc
+        #计算通道费用
+        channelFee = childFund.share * childFund.valueOrig * childFund.feeRate / 100 * days / 365
+        FOF.pendingAsset = FOF.pendingAsset - channelFee
         childFund.relativeDays = childFund.relativeDays - days   
     #update FOF.cash
     #update FOF.value
     pass
 
 def loadValueTable(file):
-    global cost
+    global cost, FOF
 
     wb = xlrd.open_workbook(file)
     sheet = wb.sheet_by_index(0)
@@ -287,34 +398,105 @@ def loadValueTable(file):
     logPrint(tableName)
     if tableName.find(u"估值表") == -1:
         return False
+    nameCol = 2
+    moneyCol = 5
+    deposit = -1
+    fundInvest = -1
+    share = -1
+    value = None
+    for i in range(sheet.nrows):
+        if value == None and sheet.cell_value(i, 1).find(u"今日单位净值") >=0 :
+            value = cellGetNumber(sheet.cell(i, 2))
+            continue
+        elif value < 0 and sheet.cell_value(i, 1).find(u"实收资本份额折算") >=0 :
+            share = sheet.cell_value(i, 3)
+            continue
+        elif deposit < 0 and sheet.cell_value(i, nameCol).find(u"银行存款") >= 0:
+            deposit = sheet.cell_value(i, moneyCol)
+            continue
+        elif fundInvest < 0 and sheet.cell_value(i, nameCol) == u"基金投资" :
+            fundInvest = sheet.cell_value(i, moneyCol)
+            continue
+
+    if share < 0 or value == None or deposit < 0 or fundInvest < 0 :
+        return False
     dateCell = sheet.cell(2,0)
     if dateCell.ctype != xlrd.XL_CELL_DATE:
         return False
-    tableDate = xlrd.xldate_as_datetime(dateCell.value, wb.datemode).date()
-    logPrint(u"日期: " + tableDate.strftime("%Y-%m-%d"))
 
-    nrows = sheet.nrows
+    tableDate = xlrd.xldate_as_datetime(dateCell.value, wb.datemode).date()
+    logPrint(u"日期: {}，净值 {}, 份额 {}, 银行存款 {}，基金投资 {}".format(tableDate.strftime("%Y-%m-%d"), value, share, deposit, fundInvest))
+
+    FOF = FundOfFund(netValue = value,
+                     refDate = tableDate,
+                     cash = deposit + fundInvest,
+                     share = share)
+
     return True
 
 def loadLayerTable(file):
-    '''
-    global cost
-
+    global fundList, capitalList
+    fundList = []
+    capitalList = []
     wb = xlrd.open_workbook(file)
     sheet = wb.sheet_by_index(0)
     #sanity check
-    tableName = sheet.cell_value(0,0)
-    logPrint(tableName)
-    if tableName.find(u"估值表") == -1:
+    fofCol = -1
+    directFundCol = -1
+    capitalCol = -1
+    otherCol = -1
+    for i in range(sheet.ncols):
+        if fofCol < 0 and sheet.cell_value(0, i).find(u"母基金层面") >=0 :
+            fofCol = i
+        elif directFundCol < 0 and sheet.cell_value(0, i).find(u"理财直投") >=0 :
+            directFundCol = i
+        elif capitalCol < 0 and sheet.cell_value(0, i).find(u"底层资产") >=0 :
+            capitalCol = i
+        elif otherCol < 0 and sheet.cell_value(0, i).find(u"其他测算") >=0 :      
+            otherCol = i
+    if fofCol < 0 or directFundCol < 0 or capitalCol < 0 or otherCol < 0:
         return False
-    dateCell = sheet.cell(2,0)
-    if dateCell.ctype != xlrd.XL_CELL_DATE:
-        return False
-    tableDate = xlrd.xldate_as_datetime(dateCell.value, wb.datemode).date()
-    logPrint(u"日期: " + tableDate.strftime("%Y-%m-%d"))
 
-    nrows = sheet.nrows
-    '''
+    logPrint(u"定位col: 母基金 {}, 直投 {}, 底层资产 {}, 其他信息 {}".format(fofCol, directFundCol, capitalCol, otherCol), 'v')
+
+    contentRow = 2
+    for i in range(contentRow, sheet.nrows):
+
+        if sheet.cell(i, 0).ctype != xlrd.XL_CELL_EMPTY :
+            f = Fund(
+                    name = sheet.cell_value(i, 0).strip(),
+                    share = cellGetNumber(sheet.cell(i, fofCol + 4)),
+                    valueOrig = cellGetNumber(sheet.cell(i, fofCol + 3)),
+                    buyInDate = cellGetDate(sheet.cell(i, fofCol), wb.datemode),
+                    expireDate = cellGetDate(sheet.cell(i, fofCol + 5), wb.datemode),
+                    customerInterest =  cellGetNumber(sheet.cell(i, otherCol)),
+                    feeRate = cellGetNumber(sheet.cell(i, otherCol + 1))
+                    )
+            f.dump()
+            if f.isValid() :
+                #f.dump()
+                fundList.append(f)
+            else:
+                logPrint(u"{} 数据错误, 不纳入计算".format(f.name), 'w')
+
+        if sheet.cell(i, capitalCol).ctype != xlrd.XL_CELL_EMPTY and \
+                sheet.cell_value(i, otherCol + 4) == u"是" :
+            c = Capital(
+                    name = sheet.cell_value(i, capitalCol + 2),
+                    money = cellGetNumber(sheet.cell(i, capitalCol + 3)),
+                    buyInDate = cellGetDate(sheet.cell(i, capitalCol + 0), wb.datemode),
+                    valueDate = cellGetDate(sheet.cell(i, capitalCol + 5), wb.datemode),
+                    expireDate = cellGetDate(sheet.cell(i, capitalCol + 6), wb.datemode),
+                    feeRate = cellGetNumber(sheet.cell(i, otherCol + 2)),
+                    fundInterest = cellGetNumber(sheet.cell(i, capitalCol + 4))
+                    )
+
+            if c.isValid() :
+                c.dump()
+                capitalList.append(c)
+            else:
+                logPrint(u"{} 数据错误, 不纳入计算".format(c.name), 'w')
+
     return True
 
 def selectValueTable(evt):
@@ -360,7 +542,7 @@ def selectLayerTable(evt):
         # This returns a Python list of files that were selected.
         path = dlg.GetPath()
         #print paths
-        valueTableText.SetValue(os.path.basename(path))
+        layerTableText.SetValue(os.path.basename(path))
         logPrint('open ' + path)
         if loadLayerTable(path) == True :
             logPrint(u"读取 分层表成功!")
@@ -409,7 +591,7 @@ hbox3.Add(caclBtn, flag = wx.ALL, border = 3)
 hbox3.Add(clearBtn, flag = wx.ALL, border = 3)
 hbox3.Add(verboseChk, flag = wx.ALL | wx.EXPAND, border = 3)
 
-logText = wx.TextCtrl(bkg, style = wx.TE_AUTO_SCROLL | wx.TE_MULTILINE | wx.TE_READONLY)
+logText = wx.TextCtrl(bkg, style = wx.TE_AUTO_SCROLL | wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
 #logText.Enabled = False
 logPrint(u"初始化完成")
 
@@ -463,14 +645,20 @@ frame.Bind(wx.EVT_MENU, onAbout, menuAbout)
 #-----------------------
 #test data
 fundList = []
-fundList.append(Fund(name = "SF001", share = 10000, buyInDate = datetime.date(2016, 11, 12), expireDate = datetime.date(2017, 11, 12), 
-                     customerInterest = 5.5, feeRate = 1, fundInterest = 7))
-fundList.append(Fund(name = "SF002", share = 20000, buyInDate = datetime.date(2016, 11, 2), expireDate = datetime.date(2017, 11, 2), 
-                     customerInterest = 3, feeRate = 0.5, fundInterest = 7))
-fundList.append(Fund(name = "SF003", share = 30000, buyInDate = datetime.date(2017, 3, 4), expireDate = datetime.date(2018, 3, 4), 
-                     customerInterest = 4, feeRate = 1.5, fundInterest = 7))
-
-FOF = FundOfFund(netValue = 1, refDate = datetime.date(2017, 10, 12), cash = 10000, share = 100000)
+'''
+fundList.append(Fund(name = "RF001", share = 10000, buyInDate = datetime.date(2016, 11, 12), expireDate = datetime.date(2017, 11, 12), 
+                     customerInterest = 5.5, feeRate = 0))
+fundList.append(Fund(name = "RF002", share = 20000, buyInDate = datetime.date(2016, 11, 2), expireDate = datetime.date(2017, 11, 2), 
+                     customerInterest = 3, feeRate = 0))
+'''
+capitalList = []
+'''
+capitalList.append(Capital(name = "HS18-1", money = 15000, buyInDate = datetime.date(2017, 1, 4), expireDate = datetime.date(2018, 3, 4), 
+                     feeRate = 1.5, fundInterest = 7))
+capitalList.append(Capital(name = "HS18-2", money = 12000, buyInDate = datetime.date(2017, 1, 1), expireDate = datetime.date(2018, 3, 4), 
+                     feeRate = 1.4, fundInterest = 6))
+'''
+FOF = None
 
 frame.Show()
 
