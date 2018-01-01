@@ -549,7 +549,7 @@ logText = wx.TextCtrl(bkg, style = wx.TE_AUTO_SCROLL | wx.TE_MULTILINE | wx.TE_R
 #logText.Enabled = False
 logPrint(u"=====================================")
 logPrint(u"注意事项：")
-logPrint(u"1. 估值表3A单元格必须是Date格式的日期")
+logPrint(u"1. 估值表A3单元格必须是Date格式的日期")
 logPrint(u"2. 分层表中所有的日期单元格必须是Date格式")
 logPrint(u"=====================================")
 
