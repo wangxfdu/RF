@@ -1,4 +1,4 @@
-# fof
+# RF
 
 ## 环境搭建(仅需一次)
 * 下载 Anaconda，地址 https://mirrors.tuna.tsinghua.edu.cn/anaconda/archive/Anaconda2-5.0.1-Windows-x86_64.exe (国内镜像，推荐) 或 https://repo.continuum.io/archive/Anaconda2-5.0.1-Windows-x86_64.exe
