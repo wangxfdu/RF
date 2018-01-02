@@ -5,7 +5,7 @@
 * 双击安装，安装路径可改
 * 安装wxPython包
   * 在程序中找到"Anaconda Prompt"，点击运行
-  * 输入conda install -c anaconda wxpython，回车。若有提示，输入y。（此步骤需要网络）
+  * 输入`conda install -c anaconda wxpython`，回车。若有提示，输入y。（此步骤需要网络）
   * 安装成功，关闭退出
   * PS: 如果下载非常慢，请在执行conda install之前额外输入以下命令
     * conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
@@ -15,4 +15,4 @@
 * 下载本工程: https://github.com/wangxfdu/RF/archive/master.zip 解压后会释放main.py文件，如果程序有更新，重新下载即可
 * 在程序中找到"Anaconda Prompt"，点击运行
 * 输入 `cd c:\test1\test2` _注：c:\test1\test2为main.py所在文件夹_
-* 输入 python main.py
+* 输入 `python main.py`
