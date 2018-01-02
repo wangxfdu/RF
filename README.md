@@ -12,7 +12,7 @@
     * conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
     * conda config --set show_channel_urls yes
 ## 运行程序
-* 下载本工程中的main.py，保存到本地，如c:\test1\test2 如果程序有更新，重新下载即可
+* 下载本工程: https://github.com/wangxfdu/RF/archive/master.zip 解压后会释放main.py文件，如果程序有更新，重新下载即可
 * 在程序中找到"Anaconda Prompt"，点击运行
-* cd c:\test1\test2
-* pythonw main.py
+* 输入 cd c:\test1\test2 _注：c:\test1\test2为main.py所在文件夹_
+* 输入 python main.py
