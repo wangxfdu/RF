@@ -15,4 +15,4 @@
 * 下载本工程中的main.py，保存到本地，如c:\test1\test2 如果程序有更新，重新下载即可
 * 在程序中找到"Anaconda Prompt"，点击运行
 * cd c:\test1\test2
-* python main.py
+* pythonw main.py
