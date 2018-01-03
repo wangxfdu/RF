@@ -322,7 +322,7 @@ def HandleChildFund(FOF, childFund, nDays):
 
         FOF.cash = FOF.cash - cashDesc
         FOF.pendingAsset = FOF.pendingAsset - cashDesc
-        FOF.pendingShareDraw = childFund.share
+        FOF.pendingShareDraw = FOF.pendingShareDraw + childFund.share
         #logPrint(u"%s 赎回，天数 %d，增加现金 %s 至母基金" % (childFund.name, period, cashFormat(cashInc)))
     pass
 
@@ -394,15 +394,15 @@ def loadLayerTable(file):
     capitalOtherCol = -1
     #otherCol = -1
     for i in range(sheet.ncols):
-        if fofCol < 0 and sheet.cell_value(0, i).find(u"母基金层面交易") >=0 :
+        if fofCol < 0 and unicode(sheet.cell_value(0, i)).find(u"母基金层面交易") >=0 :
             fofCol = i
-        elif directFundCol < 0 and sheet.cell_value(0, i).find(u"理财直投") >=0 :
+        elif directFundCol < 0 and unicode(sheet.cell_value(0, i)).find(u"理财直投") >=0 :
             directFundCol = i
-        elif capitalCol < 0 and sheet.cell_value(0, i).find(u"底层资产") >=0 :
+        elif capitalCol < 0 and unicode(sheet.cell_value(0, i)).find(u"底层资产") >=0 :
             capitalCol = i
-        elif fofOtherCol < 0 and sheet.cell_value(0, i).find(u"母基金层面其他") >=0 :      
+        elif fofOtherCol < 0 and unicode(sheet.cell_value(0, i)).find(u"母基金层面其他") >=0 :
             fofOtherCol = i
-        elif capitalOtherCol < 0 and sheet.cell_value(0, i).find(u"底层资产其他") >=0 :      
+        elif capitalOtherCol < 0 and unicode(sheet.cell_value(0, i)).find(u"底层资产其他") >=0 :
             capitalOtherCol = i
     if fofCol < 0 or directFundCol < 0 or capitalCol < 0 or fofOtherCol < 0 or capitalOtherCol < 0:
         return False
@@ -510,7 +510,7 @@ def selectLayerTable(evt):
     dlg.Destroy()
 
 app = wx.App(False)
-frame = wx.Frame(None, title = u"估值小程序(v0.1)", size = (500, 600))
+frame = wx.Frame(None, title = u"估值小程序(v0.2)", size = (500, 600))
 
 bkg = wx.Panel(frame)
 """
