@@ -352,16 +352,17 @@ def loadValueTable(file):
     share = None
     value = None
     for i in range(sheet.nrows):
-        if value == None and sheet.cell_value(i, codeCol).find(u"今日单位净值") >=0 :
+        print i
+        if value == None and unicode(sheet.cell_value(i, codeCol)).find(u"今日单位净值") >=0 :
             value = cellGetNumber(sheet.cell(i, codeCol + 1))
             continue
-        elif share == None and sheet.cell_value(i, codeCol).find(u"实收资本") >=0 :
+        elif share == None and unicode(sheet.cell_value(i, codeCol)).find(u"实收资本") >=0 :
             share = cellGetNumber(sheet.cell(i, codeCol + 2))
             continue
-        elif deposit == None and sheet.cell_value(i, nameCol).find(u"银行存款") >= 0:
+        elif deposit == None and unicode(sheet.cell_value(i, nameCol)).find(u"银行存款") >= 0:
             deposit = cellGetNumber(sheet.cell(i, moneyCol))
             continue
-        elif fundInvest == None and sheet.cell_value(i, nameCol) == u"基金投资" :
+        elif fundInvest == None and unicode(sheet.cell_value(i, nameCol)) == u"基金投资" :
             fundInvest = cellGetNumber(sheet.cell(i, moneyCol))
             continue
 
