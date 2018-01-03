@@ -352,7 +352,6 @@ def loadValueTable(file):
     share = None
     value = None
     for i in range(sheet.nrows):
-        print i
         if value == None and unicode(sheet.cell_value(i, codeCol)).find(u"今日单位净值") >=0 :
             value = cellGetNumber(sheet.cell(i, codeCol + 1))
             continue
