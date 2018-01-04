@@ -167,9 +167,6 @@ def cellGetNumber(cell):
     else:
         return None
 
-def cashFormat(num):
-    return format(num, ',f')
-
 #https://www.tuicool.com/articles/AbAFJfe
 def wxdate2pydate(date):
 	assert isinstance(date, wx.DateTime)
@@ -257,7 +254,7 @@ def netValueCalculate(FOF, fundList, refDate, targetDate):
         FOF.netValue = (FOF.netValue * FOF.share + FOF.pendingAsset)/ (FOF.share - FOF.pendingShareDraw)
         FOF.pendingAsset = 0
         FOF.pendingShareDraw = 0
-        logPrint(u"母基金净值:%s 现金 %s" % (cashFormat(FOF.netValue), cashFormat(FOF.cash) ))
+        logPrint(u"母基金净值:{:,f} 现金 {:,.2f}".format(FOF.netValue, FOF.cash))
 
         #更新净值     
         for i in range(len(fundList)):
@@ -289,7 +286,7 @@ def HandleCapital(FOF, capital, nDays):
         cashInc = capital.money + \
             capital.money * (capital.fundInterest - capital.feeRate)/100 * period / 365
         FOF.cash = FOF.cash + cashInc
-        logPrint(u'产品 {} 到期，现金资产增加 {:,f}，当前总现金资产 {:,f}'.format(
+        logPrint(u'产品 {} 到期，现金资产增加 {:,.2f}，当前总现金资产 {:,.2f}'.format(
                  capital.name,
                  cashInc,
                  FOF.cash
@@ -317,13 +314,12 @@ def HandleChildFund(FOF, childFund, nDays):
         
     if (childFund.drawDate - childFund.datePoint).days == nDays :
         cashDesc = childFund.share * childFund.drawValue
-        logPrint(u"提取 {}, 金额 {:,f}，提取净值 {:,f}".format(
+        logPrint(u"提取 {}, 金额 {:,.2f}，提取净值 {:,f}".format(
                 childFund.name, cashDesc, childFund.drawValue))
 
         FOF.cash = FOF.cash - cashDesc
         FOF.pendingAsset = FOF.pendingAsset - cashDesc
         FOF.pendingShareDraw = FOF.pendingShareDraw + childFund.share
-        #logPrint(u"%s 赎回，天数 %d，增加现金 %s 至母基金" % (childFund.name, period, cashFormat(cashInc)))
     pass
 
 def loadValueTable(file):
@@ -361,17 +357,22 @@ def loadValueTable(file):
         elif deposit == None and unicode(sheet.cell_value(i, nameCol)).find(u"银行存款") >= 0:
             deposit = cellGetNumber(sheet.cell(i, moneyCol))
             continue
-        elif fundInvest == None and unicode(sheet.cell_value(i, nameCol)) == u"基金投资" :
+        elif fundInvest == None and unicode(sheet.cell_value(i, nameCol)) == u"基金投资_开放式_货币" :
             fundInvest = cellGetNumber(sheet.cell(i, moneyCol))
             continue
 
     tableDate = cellGetDate(sheet.cell(2,0), wb.datemode)
 
-    if share == None or value == None or deposit == None or fundInvest == None or \
-        tableDate == None:
+    if fundInvest == None:
+        fundInvest = 0
+
+    if share == None or value == None or deposit == None or tableDate == None:
+        logPrint(u"日期: {}，净值 {:}, 份额 {:}, 银行存款 {:}，货币基金投资 {:}".format(
+                tableDate, value, share, deposit, fundInvest),
+                'v')
         return False
 
-    logPrint(u"日期: {}，净值 {:,f}, 份额 {:,f}, 银行存款 {:,f}，基金投资 {:,f}".format(tableDate.strftime("%Y-%m-%d"), value, share, deposit, fundInvest))
+    logPrint(u"日期: {}，净值 {:}, 份额 {:}, 银行存款 {:}，货币基金投资 {:}".format(tableDate.strftime("%Y-%m-%d"), value, share, deposit, fundInvest))
 
     FOF = FundOfFund(netValue = value,
                      refDate = tableDate,
@@ -510,7 +511,7 @@ def selectLayerTable(evt):
     dlg.Destroy()
 
 app = wx.App(False)
-frame = wx.Frame(None, title = u"估值小程序(v0.2)", size = (500, 600))
+frame = wx.Frame(None, title = u"估值小程序(v0.3)", size = (500, 600))
 
 bkg = wx.Panel(frame)
 """
