@@ -2,12 +2,7 @@
 from __future__ import division
 import wx
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.stats as stats
 import xlrd
-import gc
-import traceback
 import datetime
 
 
@@ -91,16 +86,18 @@ class Capital():
 
 
 class FundOfFund():
-    def __init__(self, netValue = 1, refDate = 0, cash = 0, share = 0):
+    def __init__(self, netValue = 1, refDate = 0, cash = 0, share = 0, totalAsset = 0):
         self.netValue = netValue
         self.refDate = refDate
         self.cash = cash
         self.share = share
+        self.totalAsset = totalAsset
         self.pendingAsset = 0
         self.pendingShareDraw = 0
 
     def clone(self):
-        copy = FundOfFund(netValue = self.netValue, refDate = self.refDate, cash = self.cash, share = self.share)
+        copy = FundOfFund(netValue = self.netValue, refDate = self.refDate, cash = self.cash, share = self.share,
+                          totalAsset = self.totalAsset)
         copy.pendingAsset = 0
         self.pendingShareDraw = 0
         return copy
@@ -251,7 +248,14 @@ def netValueCalculate(FOF, fundList, refDate, targetDate):
         #处理资产买入
 
         print "pending  {} ".format(FOF.pendingAsset)
-        FOF.netValue = (FOF.netValue * FOF.share + FOF.pendingAsset)/ (FOF.share - FOF.pendingShareDraw)
+        FOF.totalAsset = FOF.totalAsset + FOF.pendingAsset
+
+        FOF.share = FOF.share - FOF.pendingShareDraw
+        if FOF.share <=0 :
+            FOF.netValue = 0
+            logPrint(u"母基金份额为0，终止计算", 'e')
+        else :
+            FOF.netValue = FOF.totalAsset / FOF.share
         FOF.pendingAsset = 0
         FOF.pendingShareDraw = 0
         logPrint(u"母基金净值:{:,f} 现金 {:,.2f}".format(FOF.netValue, FOF.cash))
@@ -263,7 +267,11 @@ def netValueCalculate(FOF, fundList, refDate, targetDate):
         for i in range(len(fundList)):
             #update datePoint
             fundList[i].datePoint = fundList[i].datePoint + datetime.timedelta(days = tmpDays)
-        targetRelDays = targetRelDays - tmpDays
+        if FOF.netValue == 0 :
+            targetRelDays = 0 #stop calculation
+        else:
+            targetRelDays = targetRelDays - tmpDays
+
         for i in range(len(dayPoints)) :
             dayPoints[i] = dayPoints[i] - tmpDays
 
@@ -300,7 +308,7 @@ def UpdateDrawValue(FOF, childFund, nDays):
         return
 
     if (childFund.valueDate - childFund.datePoint).days == nDays :
-        childFund.drawValue = FOF.netValue
+        childFund.drawValue = round(FOF.netValue, 4)
         print "update draw value {}".format(childFund.datePoint)
 
 def HandleChildFund(FOF, childFund, nDays):
@@ -308,13 +316,13 @@ def HandleChildFund(FOF, childFund, nDays):
         return
 
     #计算托管费用
-    channelFee = childFund.share * childFund.valueOrig * childFund.feeRate / 100 * nDays / 365
+    channelFee = childFund.share * childFund.feeRate / 100 * nDays / 365
     FOF.pendingAsset = FOF.pendingAsset - channelFee
 
         
     if (childFund.drawDate - childFund.datePoint).days == nDays :
         cashDesc = childFund.share * childFund.drawValue
-        logPrint(u"提取 {}, 金额 {:,.2f}，提取净值 {:,f}".format(
+        logPrint(u"提取 {}, 金额 {:,.2f}，提取净值 {:,.4f}".format(
                 childFund.name, cashDesc, childFund.drawValue))
 
         FOF.cash = FOF.cash - cashDesc
@@ -347,6 +355,7 @@ def loadValueTable(file):
     fundInvest = None
     share = None
     value = None
+    totalAsset = None
     for i in range(sheet.nrows):
         if value == None and unicode(sheet.cell_value(i, codeCol)).find(u"今日单位净值") >=0 :
             value = cellGetNumber(sheet.cell(i, codeCol + 1))
@@ -360,24 +369,29 @@ def loadValueTable(file):
         elif fundInvest == None and unicode(sheet.cell_value(i, nameCol)) == u"基金投资_开放式_货币" :
             fundInvest = cellGetNumber(sheet.cell(i, moneyCol))
             continue
+        elif totalAsset == None and unicode(sheet.cell_value(i, codeCol)).find(u"基金资产净值") >= 0 :
+            totalAsset = cellGetNumber(sheet.cell(i, codeCol + 4))
+            continue
 
     tableDate = cellGetDate(sheet.cell(2,0), wb.datemode)
 
     if fundInvest == None:
         fundInvest = 0
 
-    if share == None or value == None or deposit == None or tableDate == None:
-        logPrint(u"日期: {}，净值 {:}, 份额 {:}, 银行存款 {:}，货币基金投资 {:}".format(
-                tableDate, value, share, deposit, fundInvest),
+    if share == None or value == None or deposit == None or tableDate == None or totalAsset == None:
+        logPrint(u"日期: {}，净值 {:}, 份额 {:}, 银行存款 {:}，货币基金投资 {:}, 基金资产净值 {}".format(
+                tableDate, value, share, deposit, fundInvest, totalAsset),
                 'v')
         return False
 
-    logPrint(u"日期: {}，净值 {:}, 份额 {:}, 银行存款 {:}，货币基金投资 {:}".format(tableDate.strftime("%Y-%m-%d"), value, share, deposit, fundInvest))
+    logPrint(u"日期: {}，净值 {:}, 份额 {:}, 银行存款 {:}，货币基金投资 {:}, 基金资产净值 {}".format(
+                tableDate, value, share, deposit, fundInvest, totalAsset))
 
     FOF = FundOfFund(netValue = value,
                      refDate = tableDate,
                      cash = deposit + fundInvest,
-                     share = share)
+                     share = share,
+                     totalAsset = totalAsset)
 
     return True
 
@@ -511,7 +525,7 @@ def selectLayerTable(evt):
     dlg.Destroy()
 
 app = wx.App(False)
-frame = wx.Frame(None, title = u"估值小程序(v0.3)", size = (500, 600))
+frame = wx.Frame(None, title = u"估值小程序(v0.4)", size = (600, 600))
 
 bkg = wx.Panel(frame)
 """
