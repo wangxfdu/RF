@@ -14,5 +14,5 @@
 ## 运行程序
 * 下载本工程: https://github.com/wangxfdu/RF/archive/master.zip 解压后会释放main.py文件，如果程序有更新，重新下载即可
 * 在程序中找到"Anaconda Prompt"，点击运行
-* 输入 `cd c:\path\to\main.py` _注：c:\path\to\main.py为main.py所在文件夹_
+* 输入 `cd c:\path_to_main_py` _注：c:\path_to_main_py为main.py所在文件夹_
 * 输入 `python main.py`
